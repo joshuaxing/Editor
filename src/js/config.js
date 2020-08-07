@@ -6,6 +6,7 @@ const config = {
 
     // 默认菜单配置
     menus: [
+        'html',
         'head',
         'bold',
         'fontSize',
@@ -25,7 +26,8 @@ const config = {
         'video',
         'code',
         'undo',
-        'redo'
+        'redo',
+        'empty'
     ],
 
     fontNames: [

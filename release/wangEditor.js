@@ -55,31 +55,31 @@ var polyfill = function () {
 
 // 根据 html 代码片段创建 dom 对象
 function createElemByHTML(html) {
-    var div = void 0;
-    div = document.createElement('div');
-    div.innerHTML = html;
-    return div.children;
+  var div = void 0;
+  div = document.createElement("div");
+  div.innerHTML = html;
+  return div.children;
 }
 
 // 是否是 DOM List
 function isDOMList(selector) {
-    if (!selector) {
-        return false;
-    }
-    if (selector instanceof HTMLCollection || selector instanceof NodeList) {
-        return true;
-    }
+  if (!selector) {
     return false;
+  }
+  if (selector instanceof HTMLCollection || selector instanceof NodeList) {
+    return true;
+  }
+  return false;
 }
 
 // 封装 document.querySelectorAll
 function querySelectorAll(selector) {
-    var result = document.querySelectorAll(selector);
-    if (isDOMList(result)) {
-        return result;
-    } else {
-        return [result];
-    }
+  var result = document.querySelectorAll(selector);
+  if (isDOMList(result)) {
+    return result;
+  } else {
+    return [result];
+  }
 }
 
 // 记录所有的事件绑定
@@ -87,456 +87,470 @@ var eventList = [];
 
 // 创建构造函数
 function DomElement(selector) {
-    if (!selector) {
-        return;
-    }
+  if (!selector) {
+    return;
+  }
 
-    // selector 本来就是 DomElement 对象，直接返回
-    if (selector instanceof DomElement) {
-        return selector;
-    }
+  // selector 本来就是 DomElement 对象，直接返回
+  if (selector instanceof DomElement) {
+    return selector;
+  }
 
-    this.selector = selector;
-    var nodeType = selector.nodeType;
+  this.selector = selector;
+  var nodeType = selector.nodeType;
 
-    // 根据 selector 得出的结果（如 DOM，DOM List）
-    var selectorResult = [];
-    if (nodeType === 9) {
-        // document 节点
-        selectorResult = [selector];
-    } else if (nodeType === 1) {
-        // 单个 DOM 节点
-        selectorResult = [selector];
-    } else if (isDOMList(selector) || selector instanceof Array) {
-        // DOM List 或者数组
-        selectorResult = selector;
-    } else if (typeof selector === 'string') {
-        // 字符串
-        selector = selector.replace('/\n/mg', '').trim();
-        if (selector.indexOf('<') === 0) {
-            // 如 <div>
-            selectorResult = createElemByHTML(selector);
-        } else {
-            // 如 #id .class
-            selectorResult = querySelectorAll(selector);
-        }
+  // 根据 selector 得出的结果（如 DOM，DOM List）
+  var selectorResult = [];
+  if (nodeType === 9) {
+    // document 节点
+    selectorResult = [selector];
+  } else if (nodeType === 1) {
+    // 单个 DOM 节点
+    selectorResult = [selector];
+  } else if (isDOMList(selector) || selector instanceof Array) {
+    // DOM List 或者数组
+    selectorResult = selector;
+  } else if (typeof selector === "string") {
+    // 字符串
+    selector = selector.replace("/\n/mg", "").trim();
+    if (selector.indexOf("<") === 0) {
+      // 如 <div>
+      selectorResult = createElemByHTML(selector);
+    } else {
+      // 如 #id .class
+      selectorResult = querySelectorAll(selector);
     }
+  }
 
-    var length = selectorResult.length;
-    if (!length) {
-        // 空数组
-        return this;
-    }
+  var length = selectorResult.length;
+  if (!length) {
+    // 空数组
+    return this;
+  }
 
-    // 加入 DOM 节点
-    var i = void 0;
-    for (i = 0; i < length; i++) {
-        this[i] = selectorResult[i];
-    }
-    this.length = length;
+  // 加入 DOM 节点
+  var i = void 0;
+  for (i = 0; i < length; i++) {
+    this[i] = selectorResult[i];
+  }
+  this.length = length;
 }
 
 // 修改原型
 DomElement.prototype = {
-    constructor: DomElement,
+  constructor: DomElement,
 
-    // 类数组，forEach
-    forEach: function forEach(fn) {
-        var i = void 0;
-        for (i = 0; i < this.length; i++) {
-            var elem = this[i];
-            var result = fn.call(elem, elem, i);
-            if (result === false) {
-                break;
-            }
-        }
-        return this;
-    },
-
-    // clone
-    clone: function clone(deep) {
-        var cloneList = [];
-        this.forEach(function (elem) {
-            cloneList.push(elem.cloneNode(!!deep));
-        });
-        return $(cloneList);
-    },
-
-    // 获取第几个元素
-    get: function get(index) {
-        var length = this.length;
-        if (index >= length) {
-            index = index % length;
-        }
-        return $(this[index]);
-    },
-
-    // 第一个
-    first: function first() {
-        return this.get(0);
-    },
-
-    // 最后一个
-    last: function last() {
-        var length = this.length;
-        return this.get(length - 1);
-    },
-
-    // 绑定事件
-    on: function on(type, selector, fn) {
-        // selector 不为空，证明绑定事件要加代理
-        if (!fn) {
-            fn = selector;
-            selector = null;
-        }
-
-        // type 是否有多个
-        var types = [];
-        types = type.split(/\s+/);
-
-        return this.forEach(function (elem) {
-            types.forEach(function (type) {
-                if (!type) {
-                    return;
-                }
-
-                // 记录下，方便后面解绑
-                eventList.push({
-                    elem: elem,
-                    type: type,
-                    fn: fn
-                });
-
-                if (!selector) {
-                    // 无代理
-                    elem.addEventListener(type, fn);
-                    return;
-                }
-
-                // 有代理
-                elem.addEventListener(type, function (e) {
-                    var target = e.target;
-                    if (target.matches(selector)) {
-                        fn.call(target, e);
-                    }
-                });
-            });
-        });
-    },
-
-    // 取消事件绑定
-    off: function off(type, fn) {
-        return this.forEach(function (elem) {
-            elem.removeEventListener(type, fn);
-        });
-    },
-
-    // 获取/设置 属性
-    attr: function attr(key, val) {
-        if (val == null) {
-            // 获取值
-            return this[0].getAttribute(key);
-        } else {
-            // 设置值
-            return this.forEach(function (elem) {
-                elem.setAttribute(key, val);
-            });
-        }
-    },
-
-    // 添加 class
-    addClass: function addClass(className) {
-        if (!className) {
-            return this;
-        }
-        return this.forEach(function (elem) {
-            var arr = void 0;
-            if (elem.className) {
-                // 解析当前 className 转换为数组
-                arr = elem.className.split(/\s/);
-                arr = arr.filter(function (item) {
-                    return !!item.trim();
-                });
-                // 添加 class
-                if (arr.indexOf(className) < 0) {
-                    arr.push(className);
-                }
-                // 修改 elem.class
-                elem.className = arr.join(' ');
-            } else {
-                elem.className = className;
-            }
-        });
-    },
-
-    // 删除 class
-    removeClass: function removeClass(className) {
-        if (!className) {
-            return this;
-        }
-        return this.forEach(function (elem) {
-            var arr = void 0;
-            if (elem.className) {
-                // 解析当前 className 转换为数组
-                arr = elem.className.split(/\s/);
-                arr = arr.filter(function (item) {
-                    item = item.trim();
-                    // 删除 class
-                    if (!item || item === className) {
-                        return false;
-                    }
-                    return true;
-                });
-                // 修改 elem.class
-                elem.className = arr.join(' ');
-            }
-        });
-    },
-
-    // 修改 css
-    css: function css(key, val) {
-        var currentStyle = key + ':' + val + ';';
-        return this.forEach(function (elem) {
-            var style = (elem.getAttribute('style') || '').trim();
-            var styleArr = void 0,
-                resultArr = [];
-            if (style) {
-                // 将 style 按照 ; 拆分为数组
-                styleArr = style.split(';');
-                styleArr.forEach(function (item) {
-                    // 对每项样式，按照 : 拆分为 key 和 value
-                    var arr = item.split(':').map(function (i) {
-                        return i.trim();
-                    });
-                    if (arr.length === 2) {
-                        resultArr.push(arr[0] + ':' + arr[1]);
-                    }
-                });
-                // 替换或者新增
-                resultArr = resultArr.map(function (item) {
-                    if (item.indexOf(key) === 0) {
-                        return currentStyle;
-                    } else {
-                        return item;
-                    }
-                });
-                if (resultArr.indexOf(currentStyle) < 0) {
-                    resultArr.push(currentStyle);
-                }
-                // 结果
-                elem.setAttribute('style', resultArr.join('; '));
-            } else {
-                // style 无值
-                elem.setAttribute('style', currentStyle);
-            }
-        });
-    },
-
-    // 显示
-    show: function show() {
-        return this.css('display', 'block');
-    },
-
-    // 隐藏
-    hide: function hide() {
-        return this.css('display', 'none');
-    },
-
-    // 获取子节点
-    children: function children() {
-        var elem = this[0];
-        if (!elem) {
-            return null;
-        }
-
-        return $(elem.children);
-    },
-
-    // 获取子节点（包括文本节点）
-    childNodes: function childNodes() {
-        var elem = this[0];
-        if (!elem) {
-            return null;
-        }
-
-        return $(elem.childNodes);
-    },
-
-    // 增加子节点
-    append: function append($children) {
-        return this.forEach(function (elem) {
-            $children.forEach(function (child) {
-                elem.appendChild(child);
-            });
-        });
-    },
-
-    // 移除当前节点
-    remove: function remove() {
-        return this.forEach(function (elem) {
-            if (elem.remove) {
-                elem.remove();
-            } else {
-                var parent = elem.parentElement;
-                parent && parent.removeChild(elem);
-            }
-        });
-    },
-
-    // 是否包含某个子节点
-    isContain: function isContain($child) {
-        var elem = this[0];
-        var child = $child[0];
-        return elem.contains(child);
-    },
-
-    // 尺寸数据
-    getSizeData: function getSizeData() {
-        var elem = this[0];
-        return elem.getBoundingClientRect(); // 可得到 bottom height left right top width 的数据
-    },
-
-    // 封装 nodeName
-    getNodeName: function getNodeName() {
-        var elem = this[0];
-        return elem.nodeName;
-    },
-
-    // 从当前元素查找
-    find: function find(selector) {
-        var elem = this[0];
-        return $(elem.querySelectorAll(selector));
-    },
-
-    // 获取当前元素的 text
-    text: function text(val) {
-        if (!val) {
-            // 获取 text
-            var elem = this[0];
-            return elem.innerHTML.replace(/<.*?>/g, function () {
-                return '';
-            });
-        } else {
-            // 设置 text
-            return this.forEach(function (elem) {
-                elem.innerHTML = val;
-            });
-        }
-    },
-
-    // 获取 html
-    html: function html(value) {
-        var elem = this[0];
-        if (value == null) {
-            return elem.innerHTML;
-        } else {
-            elem.innerHTML = value;
-            return this;
-        }
-    },
-
-    // 获取 value
-    val: function val() {
-        var elem = this[0];
-        return elem.value.trim();
-    },
-
-    // focus
-    focus: function focus() {
-        return this.forEach(function (elem) {
-            elem.focus();
-        });
-    },
-
-    // parent
-    parent: function parent() {
-        var elem = this[0];
-        return $(elem.parentElement);
-    },
-
-    // parentUntil 找到符合 selector 的父节点
-    parentUntil: function parentUntil(selector, _currentElem) {
-        var results = document.querySelectorAll(selector);
-        var length = results.length;
-        if (!length) {
-            // 传入的 selector 无效
-            return null;
-        }
-
-        var elem = _currentElem || this[0];
-        if (elem.nodeName === 'BODY') {
-            return null;
-        }
-
-        var parent = elem.parentElement;
-        var i = void 0;
-        for (i = 0; i < length; i++) {
-            if (parent === results[i]) {
-                // 找到，并返回
-                return $(parent);
-            }
-        }
-
-        // 继续查找
-        return this.parentUntil(selector, parent);
-    },
-
-    // 判断两个 elem 是否相等
-    equal: function equal($elem) {
-        if ($elem.nodeType === 1) {
-            return this[0] === $elem;
-        } else {
-            return this[0] === $elem[0];
-        }
-    },
-
-    // 将该元素插入到某个元素前面
-    insertBefore: function insertBefore(selector) {
-        var $referenceNode = $(selector);
-        var referenceNode = $referenceNode[0];
-        if (!referenceNode) {
-            return this;
-        }
-        return this.forEach(function (elem) {
-            var parent = referenceNode.parentNode;
-            parent.insertBefore(elem, referenceNode);
-        });
-    },
-
-    // 将该元素插入到某个元素后面
-    insertAfter: function insertAfter(selector) {
-        var $referenceNode = $(selector);
-        var referenceNode = $referenceNode[0];
-        if (!referenceNode) {
-            return this;
-        }
-        return this.forEach(function (elem) {
-            var parent = referenceNode.parentNode;
-            if (parent.lastChild === referenceNode) {
-                // 最后一个元素
-                parent.appendChild(elem);
-            } else {
-                // 不是最后一个元素
-                parent.insertBefore(elem, referenceNode.nextSibling);
-            }
-        });
+  // 类数组，forEach
+  forEach: function forEach(fn) {
+    var i = void 0;
+    for (i = 0; i < this.length; i++) {
+      var elem = this[i];
+      var result = fn.call(elem, elem, i);
+      if (result === false) {
+        break;
+      }
     }
+    return this;
+  },
+
+  // clone
+  clone: function clone(deep) {
+    var cloneList = [];
+    this.forEach(function (elem) {
+      cloneList.push(elem.cloneNode(!!deep));
+    });
+    return $(cloneList);
+  },
+
+  // 获取第几个元素
+  get: function get(index) {
+    var length = this.length;
+    if (index >= length) {
+      index = index % length;
+    }
+    return $(this[index]);
+  },
+
+  // 第一个
+  first: function first() {
+    return this.get(0);
+  },
+
+  // 最后一个
+  last: function last() {
+    var length = this.length;
+    return this.get(length - 1);
+  },
+
+  // 绑定事件
+  on: function on(type, selector, fn) {
+    // selector 不为空，证明绑定事件要加代理
+    if (!fn) {
+      fn = selector;
+      selector = null;
+    }
+
+    // type 是否有多个
+    var types = [];
+    types = type.split(/\s+/);
+
+    return this.forEach(function (elem) {
+      types.forEach(function (type) {
+        if (!type) {
+          return;
+        }
+
+        // 记录下，方便后面解绑
+        eventList.push({
+          elem: elem,
+          type: type,
+          fn: fn
+        });
+
+        if (!selector) {
+          // 无代理
+          elem.addEventListener(type, fn);
+          return;
+        }
+
+        // 有代理
+        elem.addEventListener(type, function (e) {
+          var target = e.target;
+          if (target.matches(selector)) {
+            fn.call(target, e);
+          }
+        });
+      });
+    });
+  },
+
+  // 取消事件绑定
+  off: function off(type, fn) {
+    return this.forEach(function (elem) {
+      elem.removeEventListener(type, fn);
+    });
+  },
+
+  // 获取/设置 属性
+  attr: function attr(key, val) {
+    if (val == null) {
+      // 获取值
+      return this[0].getAttribute(key);
+    } else {
+      // 设置值
+      return this.forEach(function (elem) {
+        elem.setAttribute(key, val);
+      });
+    }
+  },
+
+  // 添加 class
+  addClass: function addClass(className) {
+    if (!className) {
+      return this;
+    }
+    return this.forEach(function (elem) {
+      var arr = void 0;
+      if (elem.className) {
+        // 解析当前 className 转换为数组
+        arr = elem.className.split(/\s/);
+        arr = arr.filter(function (item) {
+          return !!item.trim();
+        });
+        // 添加 class
+        if (arr.indexOf(className) < 0) {
+          arr.push(className);
+        }
+        // 修改 elem.class
+        elem.className = arr.join(" ");
+      } else {
+        elem.className = className;
+      }
+    });
+  },
+
+  // 删除 class
+  removeClass: function removeClass(className) {
+    if (!className) {
+      return this;
+    }
+    return this.forEach(function (elem) {
+      var arr = void 0;
+      if (elem.className) {
+        // 解析当前 className 转换为数组
+        arr = elem.className.split(/\s/);
+        arr = arr.filter(function (item) {
+          item = item.trim();
+          // 删除 class
+          if (!item || item === className) {
+            return false;
+          }
+          return true;
+        });
+        // 修改 elem.class
+        elem.className = arr.join(" ");
+      }
+    });
+  },
+
+  // 修改 css
+  css: function css(key, val) {
+    var currentStyle = key + ":" + val + ";";
+    return this.forEach(function (elem) {
+      var style = (elem.getAttribute("style") || "").trim();
+      var styleArr = void 0,
+          resultArr = [];
+      if (style) {
+        // 将 style 按照 ; 拆分为数组
+        styleArr = style.split(";");
+        styleArr.forEach(function (item) {
+          // 对每项样式，按照 : 拆分为 key 和 value
+          var arr = item.split(":").map(function (i) {
+            return i.trim();
+          });
+          if (arr.length === 2) {
+            resultArr.push(arr[0] + ":" + arr[1]);
+          }
+        });
+        // 替换或者新增
+        resultArr = resultArr.map(function (item) {
+          if (item.indexOf(key) === 0) {
+            return currentStyle;
+          } else {
+            return item;
+          }
+        });
+        if (resultArr.indexOf(currentStyle) < 0) {
+          resultArr.push(currentStyle);
+        }
+        // 结果
+        elem.setAttribute("style", resultArr.join("; "));
+      } else {
+        // style 无值
+        elem.setAttribute("style", currentStyle);
+      }
+    });
+  },
+
+  // 显示
+  show: function show() {
+    return this.css("display", "block");
+  },
+
+  // 隐藏
+  hide: function hide() {
+    return this.css("display", "none");
+  },
+
+  // 获取子节点
+  children: function children() {
+    var elem = this[0];
+    if (!elem) {
+      return null;
+    }
+
+    return $(elem.children);
+  },
+
+  // 获取子节点（包括文本节点）
+  childNodes: function childNodes() {
+    var elem = this[0];
+    if (!elem) {
+      return null;
+    }
+
+    return $(elem.childNodes);
+  },
+
+  // 增加子节点
+  append: function append($children) {
+    return this.forEach(function (elem) {
+      $children.forEach(function (child) {
+        elem.appendChild(child);
+      });
+    });
+  },
+
+  // 移除当前节点
+  remove: function remove() {
+    return this.forEach(function (elem) {
+      if (elem.remove) {
+        elem.remove();
+      } else {
+        var parent = elem.parentElement;
+        parent && parent.removeChild(elem);
+      }
+    });
+  },
+
+  // 是否包含某个子节点
+  isContain: function isContain($child) {
+    var elem = this[0];
+    var child = $child[0];
+    return elem.contains(child);
+  },
+
+  // 尺寸数据
+  getSizeData: function getSizeData() {
+    var elem = this[0];
+    return elem.getBoundingClientRect(); // 可得到 bottom height left right top width 的数据
+  },
+
+  // 封装 nodeName
+  getNodeName: function getNodeName() {
+    var elem = this[0];
+    return elem.nodeName;
+  },
+
+  // 从当前元素查找
+  find: function find(selector) {
+    var elem = this[0];
+    return $(elem.querySelectorAll(selector));
+  },
+
+  // 自定义texthtml
+  texthtml: function texthtml(val) {
+    if (!val) {
+      // 获取 texthtml
+      var elem = this[0];
+      return elem.innerText;
+    } else {
+      // 设置 texthtml
+      return this.forEach(function (elem) {
+        elem.innerText = val;
+      });
+    }
+  },
+
+  // 获取当前元素的 text
+  text: function text(val) {
+    if (!val) {
+      // 获取 text
+      var elem = this[0];
+      return elem.innerHTML.replace(/<.*?>/g, function () {
+        return "";
+      });
+    } else {
+      // 设置 text
+      return this.forEach(function (elem) {
+        elem.innerHTML = val;
+      });
+    }
+  },
+
+  // 获取 html
+  html: function html(value) {
+    var elem = this[0];
+    if (value == null) {
+      return elem.innerHTML;
+    } else {
+      elem.innerHTML = value;
+      return this;
+    }
+  },
+
+  // 获取 value
+  val: function val() {
+    var elem = this[0];
+    return elem.value.trim();
+  },
+
+  // focus
+  focus: function focus() {
+    return this.forEach(function (elem) {
+      elem.focus();
+    });
+  },
+
+  // parent
+  parent: function parent() {
+    var elem = this[0];
+    return $(elem.parentElement);
+  },
+
+  // parentUntil 找到符合 selector 的父节点
+  parentUntil: function parentUntil(selector, _currentElem) {
+    var results = document.querySelectorAll(selector);
+    var length = results.length;
+    if (!length) {
+      // 传入的 selector 无效
+      return null;
+    }
+
+    var elem = _currentElem || this[0];
+    if (elem.nodeName === "BODY") {
+      return null;
+    }
+
+    var parent = elem.parentElement;
+    var i = void 0;
+    for (i = 0; i < length; i++) {
+      if (parent === results[i]) {
+        // 找到，并返回
+        return $(parent);
+      }
+    }
+
+    // 继续查找
+    return this.parentUntil(selector, parent);
+  },
+
+  // 判断两个 elem 是否相等
+  equal: function equal($elem) {
+    if ($elem.nodeType === 1) {
+      return this[0] === $elem;
+    } else {
+      return this[0] === $elem[0];
+    }
+  },
+
+  // 将该元素插入到某个元素前面
+  insertBefore: function insertBefore(selector) {
+    var $referenceNode = $(selector);
+    var referenceNode = $referenceNode[0];
+    if (!referenceNode) {
+      return this;
+    }
+    return this.forEach(function (elem) {
+      var parent = referenceNode.parentNode;
+      parent.insertBefore(elem, referenceNode);
+    });
+  },
+
+  // 将该元素插入到某个元素后面
+  insertAfter: function insertAfter(selector) {
+    var $referenceNode = $(selector);
+    var referenceNode = $referenceNode[0];
+    if (!referenceNode) {
+      return this;
+    }
+    return this.forEach(function (elem) {
+      var parent = referenceNode.parentNode;
+      if (parent.lastChild === referenceNode) {
+        // 最后一个元素
+        parent.appendChild(elem);
+      } else {
+        // 不是最后一个元素
+        parent.insertBefore(elem, referenceNode.nextSibling);
+      }
+    });
+  }
 };
 
 // new 一个对象
 function $(selector) {
-    return new DomElement(selector);
+  return new DomElement(selector);
 }
 
 // 解绑所有事件，用于销毁编辑器
 $.offAll = function () {
-    eventList.forEach(function (item) {
-        var elem = item.elem;
-        var type = item.type;
-        var fn = item.fn;
-        // 解绑
-        elem.removeEventListener(type, fn);
-    });
+  eventList.forEach(function (item) {
+    var elem = item.elem;
+    var type = item.type;
+    var fn = item.fn;
+    // 解绑
+    elem.removeEventListener(type, fn);
+  });
 };
 
 /*
@@ -546,7 +560,7 @@ $.offAll = function () {
 var config = {
 
     // 默认菜单配置
-    menus: ['head', 'bold', 'fontSize', 'fontName', 'italic', 'underline', 'strikeThrough', 'foreColor', 'backColor', 'link', 'list', 'justify', 'quote', 'emoticon', 'image', 'table', 'video', 'code', 'undo', 'redo'],
+    menus: ['html', 'head', 'bold', 'fontSize', 'fontName', 'italic', 'underline', 'strikeThrough', 'foreColor', 'backColor', 'link', 'list', 'justify', 'quote', 'emoticon', 'image', 'table', 'video', 'code', 'undo', 'redo', 'empty'],
 
     fontNames: ['宋体', '微软雅黑', 'Arial', 'Tahoma', 'Verdana'],
 
@@ -719,6 +733,17 @@ var config = {
     // 是否上传七牛云，默认为 false
     qiniu: false
 
+    // 上传图片自定义提示方法
+    // customAlert: function (info) {
+    //     // 自定义上传提示
+    // },
+
+    // // 自定义上传图片
+    // customUploadImg: function (files, insert) {
+    //     // files 是 input 中选中的文件列表
+    //     // insert 是获取图片 url 后，插入到编辑器的方法
+    //     insert(imgUrl)
+    // }
 };
 
 /*
@@ -739,10 +764,9 @@ var UA = {
     isIE: function isIE() {
         return 'ActiveXObject' in window;
     }
-};
 
-// 遍历对象
-function objForEach(obj, fn) {
+    // 遍历对象
+};function objForEach(obj, fn) {
     var key = void 0,
         result = void 0;
     for (key in obj) {
@@ -1426,9 +1450,8 @@ Link.prototype = {
                         // 返回 true，表示该事件执行完之后，panel 要关闭。否则 panel 不会关闭
                         return true;
                     }
-                }]
-            } // tab end
-            ] // tabs end
+                }] // tab end
+            }] // tabs end
         });
 
         // 显示 panel
@@ -2059,9 +2082,8 @@ Code.prototype = {
                         // 返回 true，表示该事件执行完之后，panel 要关闭。否则 panel 不会关闭
                         return true;
                     }
-                }]
-            } // first tab end
-            ] // tabs end
+                }] // first tab end
+            }] // tabs end
         }); // new Panel end
 
         // 显示 panel
@@ -2275,9 +2297,8 @@ Table.prototype = {
                         // 返回 true，表示该事件执行完之后，panel 要关闭。否则 panel 不会关闭
                         return true;
                     }
-                }]
-            } // first tab end
-            ] // tabs end
+                }] // first tab end
+            }] // tabs end
         }); // panel end
 
         // 展示 panel
@@ -2615,9 +2636,8 @@ Video.prototype = {
                         // 返回 true，表示该事件执行完之后，panel 要关闭。否则 panel 不会关闭
                         return true;
                     }
-                }]
-            } // first tab end
-            ] // tabs end
+                }] // first tab end
+            }] // tabs end
         }); // panel end
 
         // 显示 panel
@@ -2806,9 +2826,8 @@ Image.prototype = {
                     // 返回 true 表示函数执行结束之后关闭 panel
                     return true;
                 }
-            }]
-        } // second tab end
-        ]; // tabs end
+            }] // second tab end
+        }]; // tabs end
 
         // 判断 tabs 的显示
         var tabsConfigResult = [];
@@ -2844,6 +2863,71 @@ Image.prototype = {
             $elem.removeClass('w-e-active');
         }
     }
+};
+
+/*
+    empty-menu
+*/
+// 构造函数
+function Empty(editor) {
+    this.editor = editor;
+    this.$elem = $('<div class="w-e-menu" title="\u6E05\u7A7A">\n            <i class="w-e-icon-trash-o"></i>\n        </div>');
+    this.type = 'click';
+
+    // 当前是否 active 状态
+    this._active = false;
+}
+
+// 原型
+Empty.prototype = {
+    constructor: Empty,
+    // 点击事件
+    onClick: function onClick(e) {
+        // 点击菜单将触发这里
+        var editor = this.editor;
+        editor.txt.clear();
+        editor.change && editor.change();
+    }
+};
+
+/*
+    html-menu
+*/
+var count = 0;
+
+// 构造函数
+function ChangeHtml(editor) {
+  this.editor = editor;
+  this.$elem = $("<div class=\"w-e-menu\" title=\"html\">\n            <i class=\"w-e-icon-page-break\"></i>\n        </div>");
+  this.type = "click";
+
+  // 当前是否 active 状态
+  this._active = false;
+}
+
+// 原型
+ChangeHtml.prototype = {
+  constructor: ChangeHtml,
+  // 点击事件
+  onClick: function onClick(e) {
+    // 点击菜单将触发这里
+    count++;
+    var editor = this.editor;
+    var $elem = this.$elem;
+    if (count % 2) {
+      this._active = true;
+      $elem.addClass("w-e-active");
+      var html = editor.txt.html();
+      // console.log("html", html);
+      editor.txt.texthtml(html);
+    } else {
+      this._active = false;
+      $elem.removeClass("w-e-active");
+      var text = editor.txt.texthtml();
+      // console.log("text", text);
+      editor.txt.html(text);
+    }
+  }
 };
 
 /*
@@ -2893,127 +2977,129 @@ MenuConstructors.video = Video;
 
 MenuConstructors.image = Image;
 
+MenuConstructors.empty = Empty;
+
+MenuConstructors.html = ChangeHtml;
+
 /*
     菜单集合
 */
 // 构造函数
 function Menus(editor) {
-    this.editor = editor;
-    this.menus = {};
+  this.editor = editor;
+  this.menus = {};
 }
 
 // 修改原型
 Menus.prototype = {
-    constructor: Menus,
+  constructor: Menus,
 
-    // 初始化菜单
-    init: function init() {
-        var _this = this;
+  // 初始化菜单
+  init: function init() {
+    var _this = this;
 
-        var editor = this.editor;
-        var config = editor.config || {};
-        var configMenus = config.menus || []; // 获取配置中的菜单
-
-        // 根据配置信息，创建菜单
-        configMenus.forEach(function (menuKey) {
-            var MenuConstructor = MenuConstructors[menuKey];
-            if (MenuConstructor && typeof MenuConstructor === 'function') {
-                // 创建单个菜单
-                _this.menus[menuKey] = new MenuConstructor(editor);
-            }
-        });
-
-        // 添加到菜单栏
-        this._addToToolbar();
-
-        // 绑定事件
-        this._bindEvent();
-    },
-
+    var editor = this.editor;
+    var config = editor.config || {};
+    var configMenus = config.menus || []; // 获取配置中的菜单
+    // 根据配置信息，创建菜单
+    configMenus.forEach(function (menuKey) {
+      var MenuConstructor = MenuConstructors[menuKey];
+      if (MenuConstructor && typeof MenuConstructor === "function") {
+        // 创建单个菜单
+        _this.menus[menuKey] = new MenuConstructor(editor);
+      }
+    });
     // 添加到菜单栏
-    _addToToolbar: function _addToToolbar() {
-        var editor = this.editor;
-        var $toolbarElem = editor.$toolbarElem;
-        var menus = this.menus;
-        var config = editor.config;
-        // config.zIndex 是配置的编辑区域的 z-index，菜单的 z-index 得在其基础上 +1
-        var zIndex = config.zIndex + 1;
-        objForEach(menus, function (key, menu) {
-            var $elem = menu.$elem;
-            if ($elem) {
-                // 设置 z-index
-                $elem.css('z-index', zIndex);
-                $toolbarElem.append($elem);
-            }
+    this._addToToolbar();
+
+    // 绑定事件
+    this._bindEvent();
+  },
+
+  // 添加到菜单栏
+  _addToToolbar: function _addToToolbar() {
+    var editor = this.editor;
+    var $toolbarElem = editor.$toolbarElem;
+    var menus = this.menus;
+    var config = editor.config;
+    // config.zIndex 是配置的编辑区域的 z-index，菜单的 z-index 得在其基础上 +1
+    var zIndex = config.zIndex + 1;
+    objForEach(menus, function (key, menu) {
+      var $elem = menu.$elem;
+      if ($elem) {
+        // 设置 z-index
+        $elem.css("z-index", zIndex);
+        $toolbarElem.append($elem);
+      }
+    });
+  },
+
+  // 绑定菜单 click mouseenter 事件
+  _bindEvent: function _bindEvent() {
+    var menus = this.menus;
+    var editor = this.editor;
+    objForEach(menus, function (key, menu) {
+      var type = menu.type;
+      if (!type) {
+        return;
+      }
+      var $elem = menu.$elem;
+      var droplist = menu.droplist;
+      var panel = menu.panel;
+
+      // 点击类型，例如 bold
+      if (type === "click" && menu.onClick) {
+        $elem.on("click", function (e) {
+          if (editor.selection.getRange() == null) {
+            return;
+          }
+          menu.onClick(e);
         });
-    },
+      }
 
-    // 绑定菜单 click mouseenter 事件
-    _bindEvent: function _bindEvent() {
-        var menus = this.menus;
-        var editor = this.editor;
-        objForEach(menus, function (key, menu) {
-            var type = menu.type;
-            if (!type) {
-                return;
-            }
-            var $elem = menu.$elem;
-            var droplist = menu.droplist;
-            var panel = menu.panel;
-
-            // 点击类型，例如 bold
-            if (type === 'click' && menu.onClick) {
-                $elem.on('click', function (e) {
-                    if (editor.selection.getRange() == null) {
-                        return;
-                    }
-                    menu.onClick(e);
-                });
-            }
-
-            // 下拉框，例如 head
-            if (type === 'droplist' && droplist) {
-                $elem.on('mouseenter', function (e) {
-                    if (editor.selection.getRange() == null) {
-                        return;
-                    }
-                    // 显示
-                    droplist.showTimeoutId = setTimeout(function () {
-                        droplist.show();
-                    }, 200);
-                }).on('mouseleave', function (e) {
-                    // 隐藏
-                    droplist.hideTimeoutId = setTimeout(function () {
-                        droplist.hide();
-                    }, 0);
-                });
-            }
-
-            // 弹框类型，例如 link
-            if (type === 'panel' && menu.onClick) {
-                $elem.on('click', function (e) {
-                    e.stopPropagation();
-                    if (editor.selection.getRange() == null) {
-                        return;
-                    }
-                    // 在自定义事件中显示 panel
-                    menu.onClick(e);
-                });
-            }
+      // 下拉框，例如 head
+      if (type === "droplist" && droplist) {
+        $elem.on("mouseenter", function (e) {
+          if (editor.selection.getRange() == null) {
+            return;
+          }
+          // 显示
+          droplist.showTimeoutId = setTimeout(function () {
+            droplist.show();
+          }, 200);
+        }).on("mouseleave", function (e) {
+          // 隐藏
+          droplist.hideTimeoutId = setTimeout(function () {
+            droplist.hide();
+          }, 0);
         });
-    },
+      }
 
-    // 尝试修改菜单状态
-    changeActive: function changeActive() {
-        var menus = this.menus;
-        objForEach(menus, function (key, menu) {
-            if (menu.tryChangeActive) {
-                setTimeout(function () {
-                    menu.tryChangeActive();
-                }, 100);
-            }
+      // 弹框类型，例如 link
+      if (type === "panel" && menu.onClick) {
+        $elem.on("click", function (e) {
+          e.stopPropagation();
+          if (editor.selection.getRange() == null) {
+            return;
+          }
+          // 在自定义事件中显示 panel
+          menu.onClick(e);
         });
-    }
+      }
+    });
+  },
+
+  // 尝试修改菜单状态
+  changeActive: function changeActive() {
+    var menus = this.menus;
+    objForEach(menus, function (key, menu) {
+      if (menu.tryChangeActive) {
+        setTimeout(function () {
+          menu.tryChangeActive();
+        }, 100);
+      }
+    });
+  }
 };
 
 /*
@@ -3182,7 +3268,6 @@ Text.prototype = {
             return html;
         } else {
             $textElem.html(val);
-
             // 初始化选取，将光标定位到内容尾部
             editor.initSelection();
         }
@@ -3208,6 +3293,23 @@ Text.prototype = {
         } else {
             $textElem.text('<p>' + val + '</p>');
 
+            // 初始化选取，将光标定位到内容尾部
+            editor.initSelection();
+        }
+    },
+
+    // 获取 设置 texthtml
+    texthtml: function texthtml(val) {
+        var editor = this.editor;
+        var $textElem = editor.$textElem;
+        var text = void 0;
+        if (val == null) {
+            text = $textElem.texthtml();
+            // 未选中任何内容的时候点击“加粗”或者“斜体”等按钮，就得需要一个空的占位符 &#8203 ，这里替换掉
+            text = text.replace(/\u200b/gm, '');
+            return text;
+        } else {
+            $textElem.texthtml('' + val);
             // 初始化选取，将光标定位到内容尾部
             editor.initSelection();
         }
@@ -3707,7 +3809,7 @@ Command.prototype = {
     _insertHTML: function _insertHTML(html) {
         var editor = this.editor;
         var range = editor.selection.getRange();
-
+        console.log(range);
         if (this.queryCommandSupported('insertHTML')) {
             // W3C
             this._execCommand('insertHTML', html);
@@ -4057,7 +4159,7 @@ UploadImg.prototype = {
             }
         }
 
-        editor.cmd.do('insertHTML', '<img src="' + link + '" style="max-width:100%;"/>');
+        editor.cmd.do('insertHTML', '<p class="img-p"><img src="' + link + '" style="max-width:100%;"/></p>');
 
         // 验证图片 url 是否有效，无效的话给出提示
         var img = document.createElement('img');
@@ -4353,7 +4455,6 @@ Editor.prototype = {
         // _config 是默认配置，this.customConfig 是用户自定义配置，将它们 merge 之后再赋值
         var target = {};
         this.config = Object.assign(target, config, this.customConfig);
-
         // 将语言配置，生成正则表达式
         var langConfig = this.config.lang || {};
         var langArgs = [];
@@ -4525,18 +4626,21 @@ Editor.prototype = {
     initSelection: function initSelection(newLine) {
         var $textElem = this.$textElem;
         var $children = $textElem.children();
+
         if (!$children.length) {
             // 如果编辑器区域无内容，添加一个空行，重新设置选区
+            console.log('如果编辑器区域无内容，添加一个空行，重新设置选区');
             $textElem.append($('<p><br></p>'));
             this.initSelection();
             return;
         }
 
         var $last = $children.last();
-
         if (newLine) {
+            console.log('新增一个空行');
             // 新增一个空行
             var html = $last.html().toLowerCase();
+
             var nodeName = $last.getNodeName();
             if (html !== '<br>' && html !== '<br\/>' || nodeName !== 'P') {
                 // 最后一个元素不是 <p><br></p>，添加一个空行，重新设置选区
@@ -4545,7 +4649,6 @@ Editor.prototype = {
                 return;
             }
         }
-
         this.selection.createRangeByElem($last, false, true);
         this.selection.restoreSelection();
     },
@@ -4573,7 +4676,7 @@ Editor.prototype = {
             this.change = function () {
                 // 判断是否有变化
                 var currentHtml = this.txt.html();
-
+                console.log(currentHtml);
                 if (currentHtml.length === beforeChangeHtml.length) {
                     // 需要比较每一个字符
                     if (currentHtml === beforeChangeHtml) {
@@ -4658,7 +4761,7 @@ try {
 polyfill();
 
 // 这里的 `inlinecss` 将被替换成 css 代码的内容，详情可去 ./gulpfile.js 中搜索 `inlinecss` 关键字
-var inlinecss = '.w-e-toolbar,.w-e-text-container,.w-e-menu-panel {  padding: 0;  margin: 0;  box-sizing: border-box;}.w-e-toolbar *,.w-e-text-container *,.w-e-menu-panel * {  padding: 0;  margin: 0;  box-sizing: border-box;}.w-e-clear-fix:after {  content: "";  display: table;  clear: both;}.w-e-toolbar .w-e-droplist {  position: absolute;  left: 0;  top: 0;  background-color: #fff;  border: 1px solid #f1f1f1;  border-right-color: #ccc;  border-bottom-color: #ccc;}.w-e-toolbar .w-e-droplist .w-e-dp-title {  text-align: center;  color: #999;  line-height: 2;  border-bottom: 1px solid #f1f1f1;  font-size: 13px;}.w-e-toolbar .w-e-droplist ul.w-e-list {  list-style: none;  line-height: 1;}.w-e-toolbar .w-e-droplist ul.w-e-list li.w-e-item {  color: #333;  padding: 5px 0;}.w-e-toolbar .w-e-droplist ul.w-e-list li.w-e-item:hover {  background-color: #f1f1f1;}.w-e-toolbar .w-e-droplist ul.w-e-block {  list-style: none;  text-align: left;  padding: 5px;}.w-e-toolbar .w-e-droplist ul.w-e-block li.w-e-item {  display: inline-block;  *display: inline;  *zoom: 1;  padding: 3px 5px;}.w-e-toolbar .w-e-droplist ul.w-e-block li.w-e-item:hover {  background-color: #f1f1f1;}@font-face {  font-family: \'w-e-icon\';  src: url(data:application/x-font-woff;charset=utf-8;base64,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) format(\'truetype\');  font-weight: normal;  font-style: normal;}[class^="w-e-icon-"],[class*=" w-e-icon-"] {  /* use !important to prevent issues with browser extensions that change fonts */  font-family: \'w-e-icon\' !important;  speak: none;  font-style: normal;  font-weight: normal;  font-variant: normal;  text-transform: none;  line-height: 1;  /* Better Font Rendering =========== */  -webkit-font-smoothing: antialiased;  -moz-osx-font-smoothing: grayscale;}.w-e-icon-close:before {  content: "\\f00d";}.w-e-icon-upload2:before {  content: "\\e9c6";}.w-e-icon-trash-o:before {  content: "\\f014";}.w-e-icon-header:before {  content: "\\f1dc";}.w-e-icon-pencil2:before {  content: "\\e906";}.w-e-icon-paint-brush:before {  content: "\\f1fc";}.w-e-icon-image:before {  content: "\\e90d";}.w-e-icon-play:before {  content: "\\e912";}.w-e-icon-location:before {  content: "\\e947";}.w-e-icon-undo:before {  content: "\\e965";}.w-e-icon-redo:before {  content: "\\e966";}.w-e-icon-quotes-left:before {  content: "\\e977";}.w-e-icon-list-numbered:before {  content: "\\e9b9";}.w-e-icon-list2:before {  content: "\\e9bb";}.w-e-icon-link:before {  content: "\\e9cb";}.w-e-icon-happy:before {  content: "\\e9df";}.w-e-icon-bold:before {  content: "\\ea62";}.w-e-icon-underline:before {  content: "\\ea63";}.w-e-icon-italic:before {  content: "\\ea64";}.w-e-icon-strikethrough:before {  content: "\\ea65";}.w-e-icon-table2:before {  content: "\\ea71";}.w-e-icon-paragraph-left:before {  content: "\\ea77";}.w-e-icon-paragraph-center:before {  content: "\\ea78";}.w-e-icon-paragraph-right:before {  content: "\\ea79";}.w-e-icon-terminal:before {  content: "\\f120";}.w-e-icon-page-break:before {  content: "\\ea68";}.w-e-icon-cancel-circle:before {  content: "\\ea0d";}.w-e-icon-font:before {  content: "\\ea5c";}.w-e-icon-text-heigh:before {  content: "\\ea5f";}.w-e-toolbar {  display: -webkit-box;  display: -ms-flexbox;  display: flex;  padding: 0 5px;  /* flex-wrap: wrap; */  /* 单个菜单 */}.w-e-toolbar .w-e-menu {  position: relative;  text-align: center;  padding: 5px 10px;  cursor: pointer;}.w-e-toolbar .w-e-menu i {  color: #999;}.w-e-toolbar .w-e-menu:hover i {  color: #333;}.w-e-toolbar .w-e-active i {  color: #1e88e5;}.w-e-toolbar .w-e-active:hover i {  color: #1e88e5;}.w-e-text-container .w-e-panel-container {  position: absolute;  top: 0;  left: 50%;  border: 1px solid #ccc;  border-top: 0;  box-shadow: 1px 1px 2px #ccc;  color: #333;  background-color: #fff;  /* 为 emotion panel 定制的样式 */  /* 上传图片的 panel 定制样式 */}.w-e-text-container .w-e-panel-container .w-e-panel-close {  position: absolute;  right: 0;  top: 0;  padding: 5px;  margin: 2px 5px 0 0;  cursor: pointer;  color: #999;}.w-e-text-container .w-e-panel-container .w-e-panel-close:hover {  color: #333;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-title {  list-style: none;  display: -webkit-box;  display: -ms-flexbox;  display: flex;  font-size: 14px;  margin: 2px 10px 0 10px;  border-bottom: 1px solid #f1f1f1;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-title .w-e-item {  padding: 3px 5px;  color: #999;  cursor: pointer;  margin: 0 3px;  position: relative;  top: 1px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-title .w-e-active {  color: #333;  border-bottom: 1px solid #333;  cursor: default;  font-weight: 700;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content {  padding: 10px 15px 10px 15px;  font-size: 16px;  /* 输入框的样式 */  /* 按钮的样式 */}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input:focus,.w-e-text-container .w-e-panel-container .w-e-panel-tab-content textarea:focus,.w-e-text-container .w-e-panel-container .w-e-panel-tab-content button:focus {  outline: none;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content textarea {  width: 100%;  border: 1px solid #ccc;  padding: 5px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content textarea:focus {  border-color: #1e88e5;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text] {  border: none;  border-bottom: 1px solid #ccc;  font-size: 14px;  height: 20px;  color: #333;  text-align: left;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text].small {  width: 30px;  text-align: center;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text].block {  display: block;  width: 100%;  margin: 10px 0;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text]:focus {  border-bottom: 2px solid #1e88e5;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button {  font-size: 14px;  color: #1e88e5;  border: none;  padding: 5px 10px;  background-color: #fff;  cursor: pointer;  border-radius: 3px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.left {  float: left;  margin-right: 10px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.right {  float: right;  margin-left: 10px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.gray {  color: #999;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.red {  color: #c24f4a;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button:hover {  background-color: #f1f1f1;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container:after {  content: "";  display: table;  clear: both;}.w-e-text-container .w-e-panel-container .w-e-emoticon-container .w-e-item {  cursor: pointer;  font-size: 18px;  padding: 0 3px;  display: inline-block;  *display: inline;  *zoom: 1;}.w-e-text-container .w-e-panel-container .w-e-up-img-container {  text-align: center;}.w-e-text-container .w-e-panel-container .w-e-up-img-container .w-e-up-btn {  display: inline-block;  *display: inline;  *zoom: 1;  color: #999;  cursor: pointer;  font-size: 60px;  line-height: 1;}.w-e-text-container .w-e-panel-container .w-e-up-img-container .w-e-up-btn:hover {  color: #333;}.w-e-text-container {  position: relative;}.w-e-text-container .w-e-progress {  position: absolute;  background-color: #1e88e5;  bottom: 0;  left: 0;  height: 1px;}.w-e-text {  padding: 0 10px;  overflow-y: scroll;}.w-e-text p,.w-e-text h1,.w-e-text h2,.w-e-text h3,.w-e-text h4,.w-e-text h5,.w-e-text table,.w-e-text pre {  margin: 10px 0;  line-height: 1.5;}.w-e-text ul,.w-e-text ol {  margin: 10px 0 10px 20px;}.w-e-text blockquote {  display: block;  border-left: 8px solid #d0e5f2;  padding: 5px 10px;  margin: 10px 0;  line-height: 1.4;  font-size: 100%;  background-color: #f1f1f1;}.w-e-text code {  display: inline-block;  *display: inline;  *zoom: 1;  background-color: #f1f1f1;  border-radius: 3px;  padding: 3px 5px;  margin: 0 3px;}.w-e-text pre code {  display: block;}.w-e-text table {  border-top: 1px solid #ccc;  border-left: 1px solid #ccc;}.w-e-text table td,.w-e-text table th {  border-bottom: 1px solid #ccc;  border-right: 1px solid #ccc;  padding: 3px 5px;}.w-e-text table th {  border-bottom: 2px solid #ccc;  text-align: center;}.w-e-text:focus {  outline: none;}.w-e-text img {  cursor: pointer;}.w-e-text img:hover {  box-shadow: 0 0 5px #333;}';
+var inlinecss = '.w-e-toolbar,.w-e-text-container,.w-e-menu-panel {  padding: 0;  margin: 0;  box-sizing: border-box;}.w-e-toolbar *,.w-e-text-container *,.w-e-menu-panel * {  padding: 0;  margin: 0;  box-sizing: border-box;}.w-e-clear-fix:after {  content: "";  display: table;  clear: both;}.w-e-toolbar .w-e-droplist {  position: absolute;  left: 0;  top: 0;  background-color: #fff;  border: 1px solid #f1f1f1;  border-right-color: #ccc;  border-bottom-color: #ccc;}.w-e-toolbar .w-e-droplist .w-e-dp-title {  text-align: center;  color: #999;  line-height: 2;  border-bottom: 1px solid #f1f1f1;  font-size: 13px;}.w-e-toolbar .w-e-droplist ul.w-e-list {  list-style: none;  line-height: 1;}.w-e-toolbar .w-e-droplist ul.w-e-list li.w-e-item {  color: #333;  padding: 5px 0;}.w-e-toolbar .w-e-droplist ul.w-e-list li.w-e-item:hover {  background-color: #f1f1f1;}.w-e-toolbar .w-e-droplist ul.w-e-block {  list-style: none;  text-align: left;  padding: 5px;}.w-e-toolbar .w-e-droplist ul.w-e-block li.w-e-item {  display: inline-block;  *display: inline;  *zoom: 1;  padding: 3px 5px;}.w-e-toolbar .w-e-droplist ul.w-e-block li.w-e-item:hover {  background-color: #f1f1f1;}@font-face {  font-family: \'w-e-icon\';  src: url(data:application/x-font-woff;charset=utf-8;base64,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) format(\'truetype\');  font-weight: normal;  font-style: normal;}[class^="w-e-icon-"],[class*=" w-e-icon-"] {  /* use !important to prevent issues with browser extensions that change fonts */  font-family: \'w-e-icon\' !important;  speak: none;  font-style: normal;  font-weight: normal;  font-variant: normal;  text-transform: none;  line-height: 1;  /* Better Font Rendering =========== */  -webkit-font-smoothing: antialiased;  -moz-osx-font-smoothing: grayscale;}.w-e-icon-close:before {  content: "\\f00d";}.w-e-icon-upload2:before {  content: "\\e9c6";}.w-e-icon-trash-o:before {  content: "\\f014";}.w-e-icon-header:before {  content: "\\f1dc";}.w-e-icon-pencil2:before {  content: "\\e906";}.w-e-icon-paint-brush:before {  content: "\\f1fc";}.w-e-icon-image:before {  content: "\\e90d";}.w-e-icon-play:before {  content: "\\e912";}.w-e-icon-location:before {  content: "\\e947";}.w-e-icon-undo:before {  content: "\\e965";}.w-e-icon-redo:before {  content: "\\e966";}.w-e-icon-quotes-left:before {  content: "\\e977";}.w-e-icon-list-numbered:before {  content: "\\e9b9";}.w-e-icon-list2:before {  content: "\\e9bb";}.w-e-icon-link:before {  content: "\\e9cb";}.w-e-icon-happy:before {  content: "\\e9df";}.w-e-icon-bold:before {  content: "\\ea62";}.w-e-icon-underline:before {  content: "\\ea63";}.w-e-icon-italic:before {  content: "\\ea64";}.w-e-icon-strikethrough:before {  content: "\\ea65";}.w-e-icon-table2:before {  content: "\\ea71";}.w-e-icon-paragraph-left:before {  content: "\\ea77";}.w-e-icon-paragraph-center:before {  content: "\\ea78";}.w-e-icon-paragraph-right:before {  content: "\\ea79";}.w-e-icon-terminal:before {  content: "\\f120";}.w-e-icon-page-break:before {  content: "\\ea68";}.w-e-icon-cancel-circle:before {  content: "\\ea0d";}.w-e-icon-font:before {  content: "\\ea5c";}.w-e-icon-text-heigh:before {  content: "\\ea5f";}.w-e-toolbar {  display: -ms-flexbox;  display: flex;  padding: 0 5px;  /* flex-wrap: wrap; */  /* 单个菜单 */}.w-e-toolbar .w-e-menu {  position: relative;  text-align: center;  padding: 5px 10px;  cursor: pointer;}.w-e-toolbar .w-e-menu i {  color: #999;}.w-e-toolbar .w-e-menu:hover i {  color: #333;}.w-e-toolbar .w-e-active i {  color: #1e88e5;}.w-e-toolbar .w-e-active:hover i {  color: #1e88e5;}.w-e-text-container .w-e-panel-container {  position: absolute;  top: 0;  left: 50%;  border: 1px solid #ccc;  border-top: 0;  box-shadow: 1px 1px 2px #ccc;  color: #333;  background-color: #fff;  /* 为 emotion panel 定制的样式 */  /* 上传图片的 panel 定制样式 */}.w-e-text-container .w-e-panel-container .w-e-panel-close {  position: absolute;  right: 0;  top: 0;  padding: 5px;  margin: 2px 5px 0 0;  cursor: pointer;  color: #999;}.w-e-text-container .w-e-panel-container .w-e-panel-close:hover {  color: #333;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-title {  list-style: none;  display: -ms-flexbox;  display: flex;  font-size: 14px;  margin: 2px 10px 0 10px;  border-bottom: 1px solid #f1f1f1;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-title .w-e-item {  padding: 3px 5px;  color: #999;  cursor: pointer;  margin: 0 3px;  position: relative;  top: 1px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-title .w-e-active {  color: #333;  border-bottom: 1px solid #333;  cursor: default;  font-weight: 700;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content {  padding: 10px 15px 10px 15px;  font-size: 16px;  /* 输入框的样式 */  /* 按钮的样式 */}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input:focus,.w-e-text-container .w-e-panel-container .w-e-panel-tab-content textarea:focus,.w-e-text-container .w-e-panel-container .w-e-panel-tab-content button:focus {  outline: none;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content textarea {  width: 100%;  border: 1px solid #ccc;  padding: 5px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content textarea:focus {  border-color: #1e88e5;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text] {  border: none;  border-bottom: 1px solid #ccc;  font-size: 14px;  height: 20px;  color: #333;  text-align: left;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text].small {  width: 30px;  text-align: center;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text].block {  display: block;  width: 100%;  margin: 10px 0;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content input[type=text]:focus {  border-bottom: 2px solid #1e88e5;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button {  font-size: 14px;  color: #1e88e5;  border: none;  padding: 5px 10px;  background-color: #fff;  cursor: pointer;  border-radius: 3px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.left {  float: left;  margin-right: 10px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.right {  float: right;  margin-left: 10px;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.gray {  color: #999;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button.red {  color: #c24f4a;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container button:hover {  background-color: #f1f1f1;}.w-e-text-container .w-e-panel-container .w-e-panel-tab-content .w-e-button-container:after {  content: "";  display: table;  clear: both;}.w-e-text-container .w-e-panel-container .w-e-emoticon-container .w-e-item {  cursor: pointer;  font-size: 18px;  padding: 0 3px;  display: inline-block;  *display: inline;  *zoom: 1;}.w-e-text-container .w-e-panel-container .w-e-up-img-container {  text-align: center;}.w-e-text-container .w-e-panel-container .w-e-up-img-container .w-e-up-btn {  display: inline-block;  *display: inline;  *zoom: 1;  color: #999;  cursor: pointer;  font-size: 60px;  line-height: 1;}.w-e-text-container .w-e-panel-container .w-e-up-img-container .w-e-up-btn:hover {  color: #333;}.w-e-text-container {  position: relative;}.w-e-text-container .w-e-progress {  position: absolute;  background-color: #1e88e5;  bottom: 0;  left: 0;  height: 1px;}.w-e-text {  padding: 0 10px;  overflow-y: scroll;}.w-e-text p,.w-e-text h1,.w-e-text h2,.w-e-text h3,.w-e-text h4,.w-e-text h5,.w-e-text table,.w-e-text pre {  margin: 10px 0;  line-height: 1.5;}.w-e-text ul,.w-e-text ol {  margin: 10px 0 10px 20px;}.w-e-text blockquote {  display: block;  border-left: 8px solid #d0e5f2;  padding: 5px 10px;  margin: 10px 0;  line-height: 1.4;  font-size: 100%;  background-color: #f1f1f1;}.w-e-text code {  display: inline-block;  *display: inline;  *zoom: 1;  background-color: #f1f1f1;  border-radius: 3px;  padding: 3px 5px;  margin: 0 3px;}.w-e-text pre code {  display: block;}.w-e-text table {  border-top: 1px solid #ccc;  border-left: 1px solid #ccc;}.w-e-text table td,.w-e-text table th {  border-bottom: 1px solid #ccc;  border-right: 1px solid #ccc;  padding: 3px 5px;}.w-e-text table th {  border-bottom: 2px solid #ccc;  text-align: center;}.w-e-text:focus {  outline: none;}.w-e-text img {  cursor: pointer;}.w-e-text .img-p {  margin: 0;  line-height: 0;}';
 
 // 将 css 代码添加到 <style> 中
 var style = document.createElement('style');

@@ -57,7 +57,7 @@ Command.prototype = {
     _insertHTML: function (html) {
         const editor = this.editor
         const range = editor.selection.getRange()
-
+        console.log(range)
         if (this.queryCommandSupported('insertHTML')) {
             // W3C
             this._execCommand('insertHTML', html)

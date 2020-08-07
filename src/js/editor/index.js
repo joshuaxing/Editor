@@ -40,7 +40,6 @@ Editor.prototype = {
         // _config 是默认配置，this.customConfig 是用户自定义配置，将它们 merge 之后再赋值
         let target = {}
         this.config = Object.assign(target, _config, this.customConfig)
-
         // 将语言配置，生成正则表达式
         const langConfig = this.config.lang || {}
         const langArgs = []
@@ -213,18 +212,21 @@ Editor.prototype = {
     initSelection: function (newLine) {
         const $textElem = this.$textElem
         const $children = $textElem.children()
+        
         if (!$children.length) {
             // 如果编辑器区域无内容，添加一个空行，重新设置选区
+            console.log('如果编辑器区域无内容，添加一个空行，重新设置选区')
             $textElem.append($('<p><br></p>'))
             this.initSelection()
             return
         }
 
         const $last = $children.last()
-
         if (newLine) {
+            console.log('新增一个空行')
             // 新增一个空行
             const html = $last.html().toLowerCase()
+            
             const nodeName = $last.getNodeName()
             if ((html !== '<br>' && html !== '<br\/>') || nodeName !== 'P') {
                 // 最后一个元素不是 <p><br></p>，添加一个空行，重新设置选区
@@ -233,7 +235,6 @@ Editor.prototype = {
                 return
             }
         }
-
         this.selection.createRangeByElem($last, false, true)
         this.selection.restoreSelection()
     },
@@ -261,7 +262,7 @@ Editor.prototype = {
             this.change = function () {
                 // 判断是否有变化
                 let currentHtml = this.txt.html()
-
+                console.log(currentHtml)
                 if (currentHtml.length === beforeChangeHtml.length) {
                     // 需要比较每一个字符
                     if (currentHtml === beforeChangeHtml) {

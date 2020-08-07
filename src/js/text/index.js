@@ -79,7 +79,6 @@ Text.prototype = {
             return html
         } else {
             $textElem.html(val)
-
             // 初始化选取，将光标定位到内容尾部
             editor.initSelection()
         }
@@ -105,6 +104,23 @@ Text.prototype = {
         } else {
             $textElem.text(`<p>${val}</p>`)
 
+            // 初始化选取，将光标定位到内容尾部
+            editor.initSelection()
+        }
+    },
+
+    // 获取 设置 texthtml
+    texthtml: function (val) {
+        const editor = this.editor
+        const $textElem = editor.$textElem
+        let text
+        if (val == null) {
+            text = $textElem.texthtml()
+            // 未选中任何内容的时候点击“加粗”或者“斜体”等按钮，就得需要一个空的占位符 &#8203 ，这里替换掉
+            text = text.replace(/\u200b/gm, '')
+            return text
+        } else {
+            $textElem.texthtml(`${val}`)
             // 初始化选取，将光标定位到内容尾部
             editor.initSelection()
         }
